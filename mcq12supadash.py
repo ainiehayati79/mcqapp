@@ -375,43 +375,41 @@ def display_quiz(is_battle_mode=False):
 
 
 
+
 def main():
-    # Initialize session state
+    # Initialize session states
     initialize_quiz()
     initialize_battle_state()
     
-    # Add tabs for Quiz and Admin Dashboard
-    tab1, tab2, tab3, tab4 = st.tabs(["📝 Quiz", "📊 Admin Dashboard", "🥇Leader Board", "⚔️ Live Battle"])
+    # Add tabs
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📝 Quiz", 
+        "📊 Admin Dashboard", 
+        "🥇Leader Board",
+        "⚔️ Live Battle"
+    ])
     
     with tab1:
         display_quiz()
     
     with tab2:
-        # Sidebar admin section (login)
-        st.sidebar.title("👨‍💼 Admin Panel")
-        
-        # Check if admin is logged in
-        is_admin = check_password()
-        
-        if is_admin:
+        if check_password():
             st.sidebar.success("Welcome, Admin! 🔓")
-            # Show admin dashboard in this tab
             display_admin_dashboard()
-            # Add logout button to sidebar
             admin_logout()
         else:
             st.title("Admin Dashboard")
             st.info("Please log in as admin to view the dashboard.")
-
+    
     with tab3:
-       display_leaderboard()
+        st.title("🏆 Leaderboard")
+        display_leaderboard()
+        
     
     with tab4:
-         # Battle mode
-        if st.session_state.student_name:
-            display_battle_mode() # Battle mode with separate quiz
-        else:
-            st.info("Please enter your name in the Quiz tab first!")
+        st.title("⚔️ Live Battle")
+        display_battle_tab()  # Use new integrated battle tab function
+
 
 
 # When leaving battle room:
@@ -525,8 +523,7 @@ def fetch_leaderboard():
 
 def display_leaderboard():
     """Display the leaderboard in a nice format."""
-    st.subheader("🏆 Leaderboard")
-    
+       
     leaderboard_data = fetch_leaderboard()
     
     if not leaderboard_data.empty:
@@ -600,78 +597,82 @@ def reset_battle_state():
     st.session_state.battle_category = None
     st.session_state.creating_battle = False
 
-# Then in your main function:
-def main():
-     # Initialize session state
-    initialize_quiz()
-    initialize_battle_state()
+
+def display_admin_dashboard():
+    st.title("👨‍💼 Admin Dashboard")
     
-    # Add tabs for Quiz and Admin Dashboard
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📝 Quiz", 
-        "📊 Admin Dashboard", 
-        "🥇Leader Board", 
-        "⚔️ Battle Mode"
-    ])
+    # Statistics cards in a row
+    col1, col2, col3, col4 = st.columns(4)
+    
+    question_count = get_question_count()
+    attempts, avg_score, max_score = get_performance_stats()
+    
+    with col1:
+        st.metric("Total Questions", question_count)
+    with col2:
+        st.metric("Total Attempts", attempts)
+    with col3:
+        st.metric("Average Score", f"{avg_score:.1f}%")
+    with col4:
+        st.metric("Highest Score", f"{max_score:.1f}%")
+    
+    # Upload section
+    st.divider()
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        uploaded_file = st.file_uploader("Upload questions (CSV)", type=["csv"])
+    with col2:
+        category = st.text_input("Category", "General")
+        if uploaded_file and st.button("Add Questions"):
+            added_count = add_questions_from_csv(uploaded_file, category)
+            if added_count > 0:
+                st.success(f"Added {added_count} questions!")
+                st.rerun()
+    
+    # Database Management Section
+    st.divider()
+    st.subheader("🗑️ Database Management")
+    
+    with st.expander("Delete All Records"):
+        st.warning("⚠️ Warning: This action cannot be undone!")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            delete_questions = st.checkbox("Delete Questions")
+        with col2:
+            delete_battles = st.checkbox("Delete Battle Records")
+            
+        confirm_text = st.text_input("Type 'DELETE' to confirm:")
+        if st.button("Delete Selected Records", type="primary"):
+            if confirm_text == "DELETE":
+                try:
+                    if delete_questions:
+                        supabase.table('questions').delete().gte('id', 0).execute()
+                        st.success("Questions deleted!")
+                                      
+                    if delete_battles:
+                        supabase.table('battle_rooms').delete().gte('id', '00000000-0000-0000-0000-000000000000').execute()
+                        st.success("Battle records deleted!")
+                        
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error deleting records: {str(e)}")
+            else:
+                st.error("Please type 'DELETE' to confirm")
+
+ 
+                       
+    # Practice Summary and History tabs
+    st.divider()
+    tab1, tab2 = st.tabs(["Practice Summary", "Practice History"])
     
     with tab1:
-        display_quiz()
+        display_practice_summary()
     
     with tab2:
-        # Admin dashboard code...
-        if check_password():
-            st.sidebar.success("Welcome, Admin! 🔓")
-            display_admin_dashboard()
-            admin_logout()
-        else:
-            st.title("Admin Dashboard")
-            st.info("Please log in as admin to view the dashboard.")
-
-    with tab3:
-        display_leaderboard()
-    
-    with tab4:
-        if st.session_state.student_name:
-            display_battle_mode()
-        else:
-            st.info("Please enter your name in the Quiz tab first!")
-
-# When leaving battle room:
-def leave_battle_room(room_id, is_creator):
-    """Handle leaving the battle room."""
-    try:
-        data = {
-            'status': 'completed',
-            'left_by': 'creator' if is_creator else 'joiner'
-        }
-        response = supabase.table('battle_rooms').update(data).eq('id', room_id).execute()
-        if response.data:
-            reset_battle_state()  # Use the new reset function
-            return True
-        return False
-    except Exception as e:
-        st.error(f"Error leaving room: {str(e)}")
-        return False
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        display_practice_history()
+ 
 
 def initialize_battle_quiz_state():
     """Initialize battle quiz specific state"""
@@ -783,10 +784,22 @@ def create_battle_room(selected_category):
         st.error(f"Error creating battle room: {str(e)}")
         return None
 
-def display_battle_mode():
-    """Display the battle mode interface."""
-    st.subheader("⚔️ Battle Mode")
+def display_battle_tab():
+    """Display battle mode with integrated name input."""
     
+    
+    # Handle name input directly in battle tab
+    if not st.session_state.student_name:
+        name_col1, name_col2 = st.columns([2, 1])
+        with name_col1:
+            name_input = st.text_input("Enter your name to start battle:", key="battle_name_input")
+        with name_col2:
+            if st.button("Start Battle", type="primary") and name_input:
+                st.session_state.student_name = name_input
+                st.rerun()
+        return
+    
+    # Show battle interface once name is entered
     if not st.session_state.battle_mode:
         # Creator view - show category selection first
         col1, col2 = st.columns(2)
@@ -818,10 +831,10 @@ def display_battle_mode():
                     st.session_state.battle_id = room_code
                     st.session_state.battle_status = 'joined'
                     st.rerun()
-    
+ 
     else:
         battle_info = check_battle_status(st.session_state.battle_id)
-        
+
         if battle_info:
             # Show battle info
             col1, col2, col3 = st.columns([2, 2, 1])
@@ -830,15 +843,15 @@ def display_battle_mode():
             with col2:
                 st.write(f"Category: **{battle_info['category']}**")
             with col3:
-                if st.button("🚪 Leave Room"):
+                if st.button("🚪 Leave Battle"):
                     is_creator = st.session_state.student_name == battle_info['creator']
                     if leave_battle_room(st.session_state.battle_id, is_creator):
                         st.session_state.battle_mode = False
                         st.session_state.battle_id = None
                         st.session_state.battle_status = None
-                        st.session_state.battle_questions = []
                         st.rerun()
-            
+
+           
             # Show waiting message for creator
             if battle_info['status'] == 'waiting':
                 st.info("👥 Waiting for opponent to join...")
@@ -908,7 +921,6 @@ def display_battle_quiz():
                 st.error("Please answer all questions before submitting.")
     
     return 0
-
 
 
 def join_battle_room(room_code):
