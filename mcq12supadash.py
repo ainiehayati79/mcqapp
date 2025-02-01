@@ -636,22 +636,169 @@ def display_battle_quiz():
                   if st.session_state.battle_answers.get(i) == q['answer'])
     return 0
 
-def create_battle_room():
-    """Create a new battle room and return the room code."""
+
+def create_battle_room(selected_category):
+    """Create a new battle room with questions from selected category."""
     try:
+        # Get questions for the selected category
+        questions = get_all_questions(selected_category)
+        shuffled_questions = random.sample(questions, min(len(questions), 5))  # Get 5 random questions
+        
+        # Prepare questions data
+        questions_data = [{
+            'question': q['question'],
+            'options': q['options'],
+            'answer': q['answer'],
+            'explanation': q['explanation']
+        } for q in shuffled_questions]
+        
         battle_data = {
             'creator': st.session_state.student_name,
             'status': 'waiting',
-            'created_at': datetime.utcnow().isoformat(),  # Using utcnow() for consistency
-            'questions': [q['question'] for q in st.session_state.questions],
+            'created_at': datetime.utcnow().isoformat(),
+            'questions': questions_data,
             'creator_score': 0,
-            'joiner_score': 0
+            'joiner_score': 0,
+            'category': selected_category
         }
+        
         response = supabase.table('battle_rooms').insert(battle_data).execute()
-        return response.data[0]['id']
+        if response.data:
+            st.session_state.battle_questions = questions_data
+            st.session_state.battle_category = selected_category
+            return response.data[0]['id']
+            
+        return None
     except Exception as e:
         st.error(f"Error creating battle room: {str(e)}")
         return None
+    
+
+def display_battle_mode():
+    """Display the battle mode interface."""
+    st.subheader("⚔️ Battle Mode")
+    
+    if not st.session_state.battle_mode:
+        # Creator view - show category selection first
+        if st.button("Create New Battle", key="create_new_battle"):
+            st.session_state.creating_battle = True
+            st.rerun()
+            
+        if st.session_state.get('creating_battle'):
+            st.write("🎯 Select Category for Battle:")
+            categories = get_categories()
+            selected_category = st.selectbox(
+                "Choose a category for the battle:",
+                categories,
+                key="battle_category_select"
+            )
+            
+            if st.button("Create Room with Selected Category"):
+                room_id = create_battle_room(selected_category)
+                if room_id:
+                    st.session_state.battle_mode = True
+                    st.session_state.battle_id = room_id
+                    st.session_state.battle_status = 'waiting'
+                    initialize_battle_quiz_state()
+                    st.rerun()
+        
+        # Joiner view - just show room code input
+        st.divider()
+        st.write("🤝 Or Join Existing Battle:")
+        room_code = st.text_input("Enter Room Code:", key="battle_room_code")
+        if room_code and st.button("Join Battle", key="join_battle"):
+            if join_battle_room(room_code):
+                st.session_state.battle_mode = True
+                st.session_state.battle_id = room_code
+                st.session_state.battle_status = 'joined'
+                initialize_battle_quiz_state()
+                st.rerun()
+    
+    else:
+        battle_info = check_battle_status(st.session_state.battle_id)
+        
+        if battle_info:
+            # Show battle info
+            col1, col2, col3 = st.columns([2, 2, 1])
+            with col1:
+                st.write(f"Room Code: **{st.session_state.battle_id}**")
+            with col2:
+                st.write(f"Category: **{battle_info['category']}**")
+            with col3:
+                if st.button("🚪 Leave Room", key="leave_room"):
+                    is_creator = st.session_state.student_name == battle_info['creator']
+                    if leave_battle_room(st.session_state.battle_id, is_creator):
+                        st.session_state.battle_mode = False
+                        st.session_state.battle_id = None
+                        st.session_state.battle_status = None
+                        initialize_battle_quiz_state()
+                        st.rerun()
+            
+            if battle_info['status'] == 'waiting':
+                st.info("👥 Waiting for opponent to join...")
+                st.write("Share this room code with your opponent!")
+                
+            elif battle_info['status'] == 'in_progress':
+                # Check if opponent left
+                if battle_info.get('left_by'):
+                    opponent_type = 'creator' if battle_info['left_by'] == 'joiner' else 'joiner'
+                    opponent_name = battle_info[opponent_type]
+                    st.warning(f"👋 {opponent_name} has left the room.")
+                    st.info("The battle has ended.")
+                    return
+
+                # Display live scores
+                col1, col2 = st.columns(2)
+                with col1:
+                    your_score = battle_info['creator_score'] if st.session_state.student_name == battle_info['creator'] else battle_info['joiner_score']
+                    st.metric("Your Score", your_score)
+                with col2:
+                    opponent_name = battle_info['joiner'] if st.session_state.student_name == battle_info['creator'] else battle_info['creator']
+                    opponent_score = battle_info['joiner_score'] if st.session_state.student_name == battle_info['creator'] else battle_info['creator_score']
+                    st.metric(f"{opponent_name}'s Score", opponent_score)
+                
+                # Display and handle quiz
+                current_score = display_battle_quiz()
+                
+                # Update score if it changed
+                if current_score > 0:
+                    is_creator = st.session_state.student_name == battle_info['creator']
+                    update_battle_score(st.session_state.battle_id, is_creator, current_score)
+                    st.rerun()
+                
+            elif battle_info['status'] == 'completed':
+                st.success("Battle Complete!")
+                
+                # Show who left if applicable
+                if battle_info.get('left_by'):
+                    leaver_name = battle_info['creator'] if battle_info['left_by'] == 'creator' else battle_info['joiner']
+                    st.info(f"👋 {leaver_name} has left the room.")
+                
+                # Show final scores and winner
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric(f"{battle_info['creator']}'s Score", battle_info['creator_score'])
+                with col2:
+                    st.metric(f"{battle_info['joiner']}'s Score", battle_info['joiner_score'])
+                
+                if battle_info['creator_score'] > battle_info['joiner_score']:
+                    st.balloons()
+                    st.success(f"🏆 Winner: {battle_info['creator']}")
+                elif battle_info['creator_score'] < battle_info['joiner_score']:
+                    st.balloons()
+                    st.success(f"🏆 Winner: {battle_info['joiner']}")
+                else:
+                    st.info("It's a tie!")
+                
+                # Option to start new battle
+                if st.button("Start New Battle", key="new_battle"):
+                    st.session_state.battle_mode = False
+                    st.session_state.battle_id = None
+                    st.session_state.battle_status = None
+                    initialize_battle_quiz_state()
+                    st.rerun() 
+
+
 
 def join_battle_room(room_code):
     """Join an existing battle room."""
@@ -719,118 +866,8 @@ def leave_battle_room(room_id, is_creator):
         st.error(f"Error leaving room: {str(e)}")
         return False
 
-def display_battle_mode():
-    """Display the battle mode interface with leave room feature."""
-    st.subheader("⚔️ Battle Mode")
-    
-    if not st.session_state.battle_mode:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if st.button("Create Battle Room", key="create_battle"):
-                room_id = create_battle_room()
-                if room_id:
-                    st.session_state.battle_mode = True
-                    st.session_state.battle_id = room_id
-                    st.session_state.battle_status = 'waiting'
-                    initialize_battle_quiz_state()
-                    st.rerun()
-        
-        with col2:
-            room_code = st.text_input("Enter Room Code to Join:", key="battle_room_code")
-            if room_code and st.button("Join Battle", key="join_battle"):
-                if join_battle_room(room_code):
-                    st.session_state.battle_mode = True
-                    st.session_state.battle_id = room_code
-                    st.session_state.battle_status = 'joined'
-                    initialize_battle_quiz_state()
-                    st.rerun()
-    
-    else:
-        battle_info = check_battle_status(st.session_state.battle_id)
-        
-        if battle_info:
-            # Show room info and leave button
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.write(f"Room Code: **{st.session_state.battle_id}**")
-            with col2:
-                if st.button("🚪 Leave Room", key="leave_room"):
-                    is_creator = st.session_state.student_name == battle_info['creator']
-                    if leave_battle_room(st.session_state.battle_id, is_creator):
-                        st.success("You have left the room.")
-                        # Reset battle state
-                        st.session_state.battle_mode = False
-                        st.session_state.battle_id = None
-                        st.session_state.battle_status = None
-                        initialize_battle_quiz_state()
-                        st.rerun()
+                
             
-            if battle_info['status'] == 'waiting':
-                st.info("Waiting for opponent to join...")
-                st.write("Share this room code with your opponent!")
-                
-            elif battle_info['status'] == 'in_progress':
-                # Check if opponent left
-                if battle_info.get('left_by'):
-                    opponent_type = 'creator' if battle_info['left_by'] == 'joiner' else 'joiner'
-                    opponent_name = battle_info[opponent_type]
-                    st.warning(f"👋 {opponent_name} has left the room.")
-                    st.info("The battle has ended.")
-                    return
-
-                # Display live scores
-                col1, col2 = st.columns(2)
-                with col1:
-                    your_score = battle_info['creator_score'] if st.session_state.student_name == battle_info['creator'] else battle_info['joiner_score']
-                    st.metric("Your Score", your_score)
-                with col2:
-                    opponent_name = battle_info['joiner'] if st.session_state.student_name == battle_info['creator'] else battle_info['creator']
-                    opponent_score = battle_info['joiner_score'] if st.session_state.student_name == battle_info['creator'] else battle_info['creator_score']
-                    st.metric(f"{opponent_name}'s Score", opponent_score)
-                
-                # Display and handle quiz
-                current_score = display_battle_quiz()
-                
-                # Update score if it changed
-                if current_score > 0:
-                    is_creator = st.session_state.student_name == battle_info['creator']
-                    update_battle_score(st.session_state.battle_id, is_creator, current_score)
-                    st.rerun()
-                
-            elif battle_info['status'] == 'completed':
-                st.success("Battle Complete!")
-                
-                # Show who left if applicable
-                if battle_info.get('left_by'):
-                    leaver_name = battle_info['creator'] if battle_info['left_by'] == 'creator' else battle_info['joiner']
-                    st.info(f"👋 {leaver_name} has left the room.")
-                
-                # Show final scores and winner
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric(f"{battle_info['creator']}'s Score", battle_info['creator_score'])
-                with col2:
-                    st.metric(f"{battle_info['joiner']}'s Score", battle_info['joiner_score'])
-                
-                if battle_info['creator_score'] > battle_info['joiner_score']:
-                    st.balloons()
-                    st.success(f"🏆 Winner: {battle_info['creator']}")
-                elif battle_info['creator_score'] < battle_info['joiner_score']:
-                    st.balloons()
-                    st.success(f"🏆 Winner: {battle_info['joiner']}")
-                else:
-                    st.info("It's a tie!")
-                
-                # Option to start new battle
-                if st.button("Start New Battle", key="new_battle"):
-                    st.session_state.battle_mode = False
-                    st.session_state.battle_id = None
-                    st.session_state.battle_status = None
-                    initialize_battle_quiz_state()
-                    st.rerun() 
-
-
 def admin_logout():
     """Handle admin logout."""
     if st.session_state.get("password_correct"):
