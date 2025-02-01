@@ -704,10 +704,23 @@ def check_battle_status(room_id):
     except Exception as e:
         st.error(f"Connection error: {str(e)}")
         return None
- 
+
+def leave_battle_room(room_id, is_creator):
+    """Handle leaving the battle room."""
+    try:
+        # Update room status and mark who left
+        data = {
+            'status': 'completed',
+            'left_by': 'creator' if is_creator else 'joiner'
+        }
+        supabase.table('battle_rooms').update(data).eq('id', room_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Error leaving room: {str(e)}")
+        return False
 
 def display_battle_mode():
-    """Display the battle mode interface."""
+    """Display the battle mode interface with leave room feature."""
     st.subheader("⚔️ Battle Mode")
     
     if not st.session_state.battle_mode:
@@ -737,13 +750,35 @@ def display_battle_mode():
         battle_info = check_battle_status(st.session_state.battle_id)
         
         if battle_info:
-            st.write(f"Room Code: **{st.session_state.battle_id}**")
+            # Show room info and leave button
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"Room Code: **{st.session_state.battle_id}**")
+            with col2:
+                if st.button("🚪 Leave Room", key="leave_room"):
+                    is_creator = st.session_state.student_name == battle_info['creator']
+                    if leave_battle_room(st.session_state.battle_id, is_creator):
+                        st.success("You have left the room.")
+                        # Reset battle state
+                        st.session_state.battle_mode = False
+                        st.session_state.battle_id = None
+                        st.session_state.battle_status = None
+                        initialize_battle_quiz_state()
+                        st.rerun()
             
             if battle_info['status'] == 'waiting':
                 st.info("Waiting for opponent to join...")
                 st.write("Share this room code with your opponent!")
                 
             elif battle_info['status'] == 'in_progress':
+                # Check if opponent left
+                if battle_info.get('left_by'):
+                    opponent_type = 'creator' if battle_info['left_by'] == 'joiner' else 'joiner'
+                    opponent_name = battle_info[opponent_type]
+                    st.warning(f"👋 {opponent_name} has left the room.")
+                    st.info("The battle has ended.")
+                    return
+
                 # Display live scores
                 col1, col2 = st.columns(2)
                 with col1:
@@ -766,7 +801,18 @@ def display_battle_mode():
             elif battle_info['status'] == 'completed':
                 st.success("Battle Complete!")
                 
+                # Show who left if applicable
+                if battle_info.get('left_by'):
+                    leaver_name = battle_info['creator'] if battle_info['left_by'] == 'creator' else battle_info['joiner']
+                    st.info(f"👋 {leaver_name} has left the room.")
+                
                 # Show final scores and winner
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric(f"{battle_info['creator']}'s Score", battle_info['creator_score'])
+                with col2:
+                    st.metric(f"{battle_info['joiner']}'s Score", battle_info['joiner_score'])
+                
                 if battle_info['creator_score'] > battle_info['joiner_score']:
                     st.balloons()
                     st.success(f"🏆 Winner: {battle_info['creator']}")
@@ -782,8 +828,9 @@ def display_battle_mode():
                     st.session_state.battle_id = None
                     st.session_state.battle_status = None
                     initialize_battle_quiz_state()
-                    st.rerun()
- 
+                    st.rerun() 
+
+
 def admin_logout():
     """Handle admin logout."""
     if st.session_state.get("password_correct"):
