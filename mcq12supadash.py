@@ -255,9 +255,12 @@ def display_admin_dashboard():
     with tab2:
         display_practice_history()
 
-def display_quiz():
+
+def display_quiz(is_battle_mode=False):
+    """Display the quiz interface with support for both regular and battle modes."""
     # Student quiz interface
-    st.title("📚 MCQ Quiz System")
+    if not is_battle_mode:
+        st.title("📚 MCQ Quiz System")
     
     # Student name input (only show if not already set)
     if not st.session_state.student_name:
@@ -269,14 +272,16 @@ def display_quiz():
         return
     
     # Show student name
-    st.subheader(f"Student: {st.session_state.student_name}")
+    if not is_battle_mode:
+        st.subheader(f"Student: {st.session_state.student_name}")
     
-    # Category selection
+    # Category selection - use different keys for battle mode
     categories = get_categories()
+    category_key = "category_select_battle" if is_battle_mode else "category_select"
     selected_category = st.selectbox(
         "Select Category:",
         categories,
-        key="category_select"
+        key=category_key
     )
     
     # Load questions if category changed or not loaded
@@ -292,12 +297,13 @@ def display_quiz():
         st.info("No questions available. Please select another category or ask an administrator to add questions.")
         return
     
-    # Display questions
+    # Display questions with different keys for battle mode
     for i, q in enumerate(st.session_state.shuffled_questions):
         st.subheader(f"Question {i+1}")
         st.markdown(f"**{q['question']}**")
         
-        key = f"q_{i}"
+        # Use different radio button keys for battle mode
+        key = f"q_battle_{i}" if is_battle_mode else f"q_{i}"
         if not st.session_state.submitted:
             user_answer = st.radio(
                 "Select your answer:",
@@ -316,10 +322,11 @@ def display_quiz():
                 disabled=True
             )
     
-    # Submit/Restart buttons
+    # Submit/Restart buttons with different keys
+    btn_prefix = "battle_" if is_battle_mode else ""
     col1, col2 = st.columns([1, 3])
     with col1:
-        if st.button("🔄 New Quiz"):
+        if st.button("🔄 New Quiz", key=f"{btn_prefix}new_quiz"):
             st.session_state.questions = []
             st.session_state.submitted = False
             st.session_state.user_answers = {}
@@ -327,7 +334,7 @@ def display_quiz():
     
     if not st.session_state.submitted:
         with col2:
-            if st.button("📤 Submit Answers"):
+            if st.button("📤 Submit Answers", key=f"{btn_prefix}submit"):
                 if all(st.session_state.user_answers.values()):
                     st.session_state.submitted = True
                     st.rerun()
@@ -354,16 +361,19 @@ def display_quiz():
         
         st.success(f"**Final Score: {score}/{len(st.session_state.questions)}**")
         
-        # Save performance
-        save_performance(
-            st.session_state.student_name,
-            score,
-            len(st.session_state.questions),
-            selected_category
-        )
+        # Save performance only in regular mode
+        if not is_battle_mode:
+            save_performance(
+                st.session_state.student_name,
+                score,
+                len(st.session_state.questions),
+                selected_category
+            )
         
         if score == len(st.session_state.questions):
             st.balloons()
+
+
 
 def main():
     # Initialize session state
@@ -374,7 +384,7 @@ def main():
     tab1, tab2, tab3, tab4 = st.tabs(["📝 Quiz", "📊 Admin Dashboard", "🥇Leader Board", "⚔️ Live Battle"])
     
     with tab1:
-        display_quiz()
+        display_quiz(is_battle_mode=False)
     
     with tab2:
         # Sidebar admin section (login)
@@ -402,7 +412,8 @@ def main():
             display_battle_mode()
         else:
             st.info("Please enter your name in the Quiz tab first!")
-  
+
+ 
 
 def initialize_quiz():
     """Initialize session state variables if they don't exist"""
@@ -541,7 +552,7 @@ def display_leaderboard():
     else:
         st.info("No quiz attempts yet!")
 
-"""Battle Mode"""
+
 def initialize_battle_state():
     """Initialize battle-related session state variables."""
     if 'battle_mode' not in st.session_state:
