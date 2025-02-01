@@ -413,7 +413,24 @@ def main():
         else:
             st.info("Please enter your name in the Quiz tab first!")
 
-  
+
+# When leaving battle room:
+def leave_battle_room(room_id, is_creator):
+    """Handle leaving the battle room."""
+    try:
+        data = {
+            'status': 'completed',
+            'left_by': 'creator' if is_creator else 'joiner'
+        }
+        response = supabase.table('battle_rooms').update(data).eq('id', room_id).execute()
+        if response.data:
+            reset_battle_state()  # Use the new reset function
+            return True
+        return False
+    except Exception as e:
+        st.error(f"Error leaving room: {str(e)}")
+        return False 
+    
 
 def initialize_quiz():
     """Initialize session state variables if they don't exist"""
@@ -552,16 +569,109 @@ def display_leaderboard():
     else:
         st.info("No quiz attempts yet!")
 
+
 def initialize_battle_state():
-    """Initialize battle-related session state variables."""
+    """Initialize all battle-related session state variables."""
     if 'battle_mode' not in st.session_state:
         st.session_state.battle_mode = False
     if 'battle_id' not in st.session_state:
         st.session_state.battle_id = None
-    if 'opponent_name' not in st.session_state:
-        st.session_state.opponent_name = None
     if 'battle_status' not in st.session_state:
         st.session_state.battle_status = None
+    if 'battle_questions' not in st.session_state:
+        st.session_state.battle_questions = []
+    if 'battle_answers' not in st.session_state:
+        st.session_state.battle_answers = {}
+    if 'battle_submitted' not in st.session_state:  # Added this
+        st.session_state.battle_submitted = False
+    if 'battle_category' not in st.session_state:
+        st.session_state.battle_category = None
+    if 'creating_battle' not in st.session_state:
+        st.session_state.creating_battle = False
+
+def reset_battle_state():
+    """Reset all battle-related session state variables."""
+    st.session_state.battle_mode = False
+    st.session_state.battle_id = None
+    st.session_state.battle_status = None
+    st.session_state.battle_questions = []
+    st.session_state.battle_answers = {}
+    st.session_state.battle_submitted = False
+    st.session_state.battle_category = None
+    st.session_state.creating_battle = False
+
+# Then in your main function:
+def main():
+     # Initialize session state
+    initialize_quiz()
+    initialize_battle_state()
+    
+    # Add tabs for Quiz and Admin Dashboard
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📝 Quiz", 
+        "📊 Admin Dashboard", 
+        "🥇Leader Board", 
+        "⚔️ Battle Mode"
+    ])
+    
+    with tab1:
+        display_quiz()
+    
+    with tab2:
+        # Admin dashboard code...
+        if check_password():
+            st.sidebar.success("Welcome, Admin! 🔓")
+            display_admin_dashboard()
+            admin_logout()
+        else:
+            st.title("Admin Dashboard")
+            st.info("Please log in as admin to view the dashboard.")
+
+    with tab3:
+        display_leaderboard()
+    
+    with tab4:
+        if st.session_state.student_name:
+            display_battle_mode()
+        else:
+            st.info("Please enter your name in the Quiz tab first!")
+
+# When leaving battle room:
+def leave_battle_room(room_id, is_creator):
+    """Handle leaving the battle room."""
+    try:
+        data = {
+            'status': 'completed',
+            'left_by': 'creator' if is_creator else 'joiner'
+        }
+        response = supabase.table('battle_rooms').update(data).eq('id', room_id).execute()
+        if response.data:
+            reset_battle_state()  # Use the new reset function
+            return True
+        return False
+    except Exception as e:
+        st.error(f"Error leaving room: {str(e)}")
+        return False
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def initialize_battle_quiz_state():
     """Initialize battle quiz specific state"""
