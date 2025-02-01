@@ -605,21 +605,34 @@ def update_battle_score(room_id, is_creator, score):
         st.error(f"Error updating score: {str(e)}")
 
 def check_battle_status(room_id):
-    """Check the status of the battle room."""
+    """Check the status of the battle room with better error handling."""
+    if not room_id:
+        return None
+        
     try:
         response = supabase.table('battle_rooms').select('*').eq('id', room_id).execute()
-        if response.data:
-            return response.data[0]
-        return None
+        if not response.data:
+            st.error("Battle room not found. It may have been deleted.")
+            # Reset battle mode if room doesn't exist
+            st.session_state.battle_mode = False
+            st.session_state.battle_id = None
+            return None
+        return response.data[0]
     except Exception as e:
-        st.error(f"Error checking battle status: {str(e)}")
+        st.error(f"Connection error: {str(e)}")
         return None
+ 
 
 def display_battle_mode():
-    """Display the battle mode interface."""
+    """Display the battle mode interface with improved error handling."""
     st.subheader("⚔️ Battle Mode")
     
-    if not st.session_state.battle_mode:
+    # Add a refresh button
+    if st.session_state.get('battle_mode'):
+        if st.button("🔄 Refresh Status"):
+            st.rerun()
+    
+    if not st.session_state.get('battle_mode', False):
         col1, col2 = st.columns(2)
         
         with col1:
@@ -647,17 +660,31 @@ def display_battle_mode():
         if battle_info:
             st.write(f"Room Code: **{st.session_state.battle_id}**")
             
+            # Add leave battle button
+            if st.button("❌ Leave Battle"):
+                st.session_state.battle_mode = False
+                st.session_state.battle_id = None
+                st.session_state.battle_status = None
+                st.rerun()
+            
             if battle_info['status'] == 'waiting':
-                st.info("Waiting for opponent to join...")
+                st.info("👥 Waiting for opponent to join...")
                 st.write("Share this room code with your opponent!")
                 
             elif battle_info['status'] == 'in_progress':
                 # Display live scores
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.metric("Your Score", battle_info['creator_score'] if st.session_state.student_name == battle_info['creator'] else battle_info['joiner_score'])
+                    st.metric(
+                        "Your Score", 
+                        battle_info['creator_score'] if st.session_state.student_name == battle_info['creator'] else battle_info['joiner_score']
+                    )
                 with col2:
-                    st.metric("Opponent Score", battle_info['joiner_score'] if st.session_state.student_name == battle_info['creator'] else battle_info['creator_score'])
+                    opponent_name = battle_info['joiner'] if st.session_state.student_name == battle_info['creator'] else battle_info['creator']
+                    st.metric(
+                        f"{opponent_name}'s Score", 
+                        battle_info['joiner_score'] if st.session_state.student_name == battle_info['creator'] else battle_info['creator_score']
+                    )
                 
                 # Display the quiz
                 display_quiz()
@@ -668,11 +695,10 @@ def display_battle_mode():
                     current_score = sum(1 for i, q in enumerate(st.session_state.questions) 
                                      if st.session_state.user_answers.get(i) == q['answer'])
                     update_battle_score(st.session_state.battle_id, is_creator, current_score)
-
-          
+            
             elif battle_info['status'] == 'completed':
-                st.success("Battle Complete!")
-                                
+                st.success("🎮 Battle Complete!")
+                
                 # Show winner
                 if battle_info['creator_score'] > battle_info['joiner_score']:
                     st.balloons()
@@ -681,7 +707,21 @@ def display_battle_mode():
                     st.balloons()
                     st.success(f"🏆 Winner: {battle_info['joiner']}")
                 else:
-                    st.info("It's a tie!")
+                    st.info("🤝 It's a tie!")
+                
+                # Option to start new battle
+                if st.button("🔄 Start New Battle"):
+                    st.session_state.battle_mode = False
+                    st.session_state.battle_id = None
+                    st.session_state.battle_status = None
+                    st.rerun()
+        else:
+            # Room not found or error occurred
+            st.error("Battle room not available. Please create a new room or join an existing one.")
+            st.session_state.battle_mode = False
+            st.session_state.battle_id = None
+            st.rerun()
+
 
 def admin_logout():
     """Handle admin logout."""
@@ -693,3 +733,5 @@ def admin_logout():
 
 if __name__ == "__main__":
     main()
+
+
