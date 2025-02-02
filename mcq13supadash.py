@@ -1037,48 +1037,35 @@ def display_battle_tab():
     
     else:
         battle_info = check_battle_status(st.session_state.battle_id)
-
+        
         if battle_info:
-            # Show battle info with copy button
-            col1, col2, col3, col4 = st.columns([2, 1, 2, 1])
-            with col1:
-                st.write(f"Room Code: **{st.session_state.battle_id}**")
-            with col2:
-                # Add copy button
-                if st.button("📋 Copy Code", key="copy_room_code"):
-                    # Using JavaScript to copy to clipboard
-                    st.write(
-                        f"""
-                        <script>
-                            const textToCopy = '{st.session_state.battle_id}';
-                            navigator.clipboard.writeText(textToCopy);
-                        </script>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                    st.success("Code copied!", icon="✅")
-            with col3:
-                st.write(f"Category: **{battle_info['category']}**")
-            with col4:
-                if st.button("🚪 Leave Room", key="leave_battle"):
-                    is_creator = st.session_state.student_name == battle_info['creator']
-                    if leave_battle_room(st.session_state.battle_id, is_creator):
-                        st.session_state.battle_mode = False
-                        st.session_state.battle_id = None
-                        st.session_state.battle_status = None
-                        st.rerun()
+        # Display room info with simple instructions
+            col1, col2, col3 = st.columns([3, 2, 1])
+        with col1:
+            st.write("Room Code: (highlight to copy):")
+            st.code(st.session_state.battle_id, language=None)  # Using code block for easy copying
+        with col2:
+            st.write(f"Category: **{battle_info['category']}**")
+        with col3:
+            if st.button("🚪 Leave Room"):
+                is_creator = st.session_state.student_name == battle_info['creator']
+                if leave_battle_room(st.session_state.battle_id, is_creator):
+                    st.session_state.battle_mode = False
+                    st.session_state.battle_id = None
+                    st.session_state.battle_status = None
+                    st.rerun()
 
-            # Show waiting message for creator
-            if battle_info['status'] == 'waiting':
-                st.info("👥 Waiting for opponent to join...")
-                st.write("Share this room code with your opponent!")
+        # Show waiting message with clear instructions
+        if battle_info['status'] == 'waiting':
+            st.info("👥 Waiting for opponent to join...")
+            st.write("Share the room code above with your opponent to join your battle!")
                 
                 # Display questions for creator while waiting
-                st.divider()
-                st.write("### Your Questions:")
-                display_battle_quiz()
+            st.divider()
+            st.write("### Your Questions:")
+            display_battle_quiz()
                 
-            elif battle_info['status'] == 'in_progress':
+        elif battle_info['status'] == 'in_progress':
                 # Display live scores
                 col1, col2 = st.columns(2)
                 with col1:
