@@ -753,22 +753,13 @@ def calculate_question_score(remaining_time, streak):
     total = (base_score + time_bonus) * streak_multiplier
     return total
 
-
-#lagi baru
+#lagibarulagi
 def display_battle_quiz():
     """Display enhanced quiz for battle mode."""
     if not st.session_state.battle_questions:
         st.warning("No questions available.")
         return 0
     
-    battle_info = check_battle_status(st.session_state.battle_id)
-    if battle_info and battle_info['status'] == 'in_progress':
-        # Display live scores at the top
-        display_live_scores(battle_info)
-        
-        st.divider()  # Add visual separation
-        
- 
     current_q_idx = st.session_state.current_question_index
     
     # Check if all questions are completed
@@ -777,7 +768,6 @@ def display_battle_quiz():
         if battle_info:
             show_battle_results(battle_info)
         return st.session_state.total_battle_score
-
 
     q = st.session_state.battle_questions[current_q_idx]
     
@@ -843,6 +833,7 @@ def display_battle_quiz():
     
     return 0
 
+
 #lagi baru
 def show_battle_results(battle_info):
     """Show final battle results with clear score comparison."""
@@ -907,43 +898,6 @@ def show_battle_results(battle_info):
             reset_battle_state()
             st.rerun()
 
-#lagibarulagi
-def display_live_scores(battle_info):
-    """Display live scores for both players with visual indicators."""
-    st.markdown("### 📊 Live Battle Scores")
-    
-    col1, col2 = st.columns(2)
-    
-    # Determine which player is which
-    is_creator = st.session_state.student_name == battle_info['creator']
-    your_score = battle_info['creator_score'] if is_creator else battle_info['joiner_score']
-    opponent_name = battle_info['joiner'] if is_creator else battle_info['creator']
-    opponent_score = battle_info['joiner_score'] if is_creator else battle_info['creator_score']
-    
-    # Your score card
-    with col1:
-        st.markdown("#### 🎯 Your Score")
-        score_container = st.container()
-        with score_container:
-            st.markdown(f"""
-            <div style='padding: 10px; border: 2px solid #4CAF50; border-radius: 5px; text-align: center;'>
-                <h2 style='color: #4CAF50; margin: 0;'>{your_score}</h2>
-                <p style='margin: 5px 0;'>Streak: {st.session_state.streak_bonus}x 🔥</p>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    # Opponent's score card
-    with col2:
-        st.markdown(f"#### 🤺 {opponent_name}'s Score")
-        score_container = st.container()
-        with score_container:
-            st.markdown(f"""
-            <div style='padding: 10px; border: 2px solid #2196F3; border-radius: 5px; text-align: center;'>
-                <h2 style='color: #2196F3; margin: 0;'>{opponent_score}</h2>
-            </div>
-            """, unsafe_allow_html=True)
-       
-    
 
 #lagibaru
 def display_battle_tab():
