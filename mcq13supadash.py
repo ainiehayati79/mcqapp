@@ -3,7 +3,7 @@ import pandas as pd
 import random
 import hashlib
 from supabase import create_client
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 # Direct Supabase initialization (this worked in your test)
 supabase_url = "https://fqzoactudfcvoxxujves.supabase.co"
@@ -753,6 +753,7 @@ def calculate_question_score(remaining_time, streak):
     total = (base_score + time_bonus) * streak_multiplier
     return total
 
+
 #lagi baru
 def display_battle_quiz():
     """Display enhanced quiz for battle mode."""
@@ -760,6 +761,14 @@ def display_battle_quiz():
         st.warning("No questions available.")
         return 0
     
+    battle_info = check_battle_status(st.session_state.battle_id)
+    if battle_info and battle_info['status'] == 'in_progress':
+        # Display live scores at the top
+        display_live_scores(battle_info)
+        
+        st.divider()  # Add visual separation
+        
+ 
     current_q_idx = st.session_state.current_question_index
     
     # Check if all questions are completed
@@ -898,7 +907,7 @@ def show_battle_results(battle_info):
             reset_battle_state()
             st.rerun()
 
-#lagi baru
+#lagibarulagi
 def display_live_scores(battle_info):
     """Display live scores for both players with visual indicators."""
     st.markdown("### 📊 Live Battle Scores")
@@ -933,7 +942,7 @@ def display_live_scores(battle_info):
                 <h2 style='color: #2196F3; margin: 0;'>{opponent_score}</h2>
             </div>
             """, unsafe_allow_html=True)
-    
+       
     
 
 #lagibaru
@@ -985,7 +994,7 @@ def display_battle_tab():
         battle_info = check_battle_status(st.session_state.battle_id)
         if battle_info:
             # Battle Header
-            st.title("⚔️ Live Battle")
+            #st.title("⚔️ Live Battle")
             col1, col2, col3 = st.columns([2, 2, 1])
             
             with col1:
