@@ -834,11 +834,12 @@ def display_battle_quiz():
     
     return 0
 
-#lagi baru
+
+#lagibarulagi
 def show_battle_results(battle_info):
-    """Show final battle results with clear score comparison."""
-    #st.divider()
-    st.markdown("## 🏆 Battle Results")
+    """Show final battle results with animations."""
+    st.divider()
+    st.subheader("🏆 Battle Results")
     
     # Get player roles and scores
     is_creator = st.session_state.student_name == battle_info['creator']
@@ -846,7 +847,7 @@ def show_battle_results(battle_info):
     opponent_name = battle_info['joiner'] if is_creator else battle_info['creator']
     opponent_score = battle_info['joiner_score'] if is_creator else battle_info['creator_score']
     
-    # Create a visual score comparison
+    # Create a visual score comparison with just one display
     col1, col2, col3 = st.columns([2, 1, 2])
     
     with col1:
@@ -897,6 +898,8 @@ def show_battle_results(battle_info):
             leave_battle_room(battle_info['id'], is_creator)
             reset_battle_state()
             st.rerun()
+
+
 
 #lagi baru
 def display_live_scores(battle_info):
@@ -985,7 +988,7 @@ def display_battle_tab():
         battle_info = check_battle_status(st.session_state.battle_id)
         if battle_info:
             # Battle Header
-            st.title("⚔️ Live Battle")
+            #st.title("⚔️ Live Battle")
             col1, col2, col3 = st.columns([2, 2, 1])
             
             with col1:
@@ -998,20 +1001,11 @@ def display_battle_tab():
                 st.write("Share your room code to start the battle!")
                 
                 # Practice while waiting
-                st.divider()
+                #st.divider()
                 display_battle_quiz()
                 
             elif battle_info['status'] == 'in_progress':
-                # Show Live Scores
-                col1, col2 = st.columns(2)
-                with col1:
-                    your_score = battle_info['creator_score'] if st.session_state.student_name == battle_info['creator'] else battle_info['joiner_score']
-                    st.metric("Your Score", your_score)
-                with col2:
-                    opponent = battle_info['joiner'] if st.session_state.student_name == battle_info['creator'] else battle_info['creator']
-                    opponent_score = battle_info['joiner_score'] if st.session_state.student_name == battle_info['creator'] else battle_info['creator_score']
-                    st.metric(f"{opponent}'s Score", opponent_score)
-                
+                                
                 # Show Battle Quiz
                 st.divider()
                 current_score = display_battle_quiz()
@@ -1025,8 +1019,6 @@ def display_battle_tab():
     
 
 #baru
-
-
 def show_active_battles():
     """Display list of active battle rooms."""
     try:
@@ -1101,7 +1093,6 @@ def calculate_final_score():
     final_score = base_score * streak_multiplier
     
     return final_score
-
 
 
 
