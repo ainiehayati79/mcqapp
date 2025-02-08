@@ -937,9 +937,7 @@ def display_live_scores(battle_info):
             </div>
             """, unsafe_allow_html=True)
     
-    
-
-#lagibaru
+#lagibarulagi
 def display_battle_tab():
     """Display enhanced battle mode interface."""
     if not st.session_state.student_name:
@@ -947,7 +945,8 @@ def display_battle_tab():
         return
         
     if not st.session_state.battle_mode:
-           
+        st.title("⚔️ Battle Arena")
+        
         # Create or Join Battle
         col1, col2 = st.columns(2)
         
@@ -961,9 +960,10 @@ def display_battle_tab():
             )
             
             if st.button("Create Battle Room", type="primary"):
-                display_code = create_battle_room(selected_category)
-                if display_code:
+                room_id = create_battle_room(selected_category)
+                if room_id:
                     st.session_state.battle_mode = True
+                    st.session_state.battle_id = room_id
                     st.session_state.battle_status = 'waiting'
                     st.session_state.current_question_index = 0
                     st.rerun()
@@ -974,13 +974,13 @@ def display_battle_tab():
             if room_code and st.button("Join Battle", type="secondary"):
                 if join_battle_room(room_code):
                     st.session_state.battle_mode = True
+                    st.session_state.battle_id = room_code
                     st.session_state.battle_status = 'joined'
                     st.session_state.current_question_index = 0
                     st.rerun()
         
-        # Show active battles
+        # Show active battles at the bottom
         st.divider()
-        st.subheader("🎮 Active Battles")
         show_active_battles()
     
     else:
@@ -988,24 +988,29 @@ def display_battle_tab():
         battle_info = check_battle_status(st.session_state.battle_id)
         if battle_info:
             # Battle Header
-            #st.title("⚔️ Live Battle")
+            st.title("⚔️ Live Battle")
             col1, col2, col3 = st.columns([2, 2, 1])
             
             with col1:
-                st.code(f"Room Code: {battle_info['display_code']}")  # Show display code
+                st.code(f"Room Code: {st.session_state.battle_id}")
             with col2:
                 st.write(f"Category: **{battle_info['category']}**")
-                                        
+            with col3:
+                if st.button("🚪 Leave Battle"):
+                    if leave_battle_room(st.session_state.battle_id, 
+                                       st.session_state.student_name == battle_info['creator']):
+                        reset_battle_state()
+                        st.rerun()
+            
             if battle_info['status'] == 'waiting':
                 st.info("👥 Waiting for opponent...")
                 st.write("Share your room code to start the battle!")
                 
                 # Practice while waiting
-                #st.divider()
+                st.divider()
                 display_battle_quiz()
                 
             elif battle_info['status'] == 'in_progress':
-                                
                 # Show Battle Quiz
                 st.divider()
                 current_score = display_battle_quiz()
@@ -1014,11 +1019,10 @@ def display_battle_tab():
                 if current_score > 0:
                     is_creator = st.session_state.student_name == battle_info['creator']
                     update_battle_score(st.session_state.battle_id, is_creator, current_score)
-                    st.rerun()
-            
-    
+                    st.rerun() 
 
-#baru
+    
+#lagi barulagi
 def show_active_battles():
     """Display list of active battle rooms."""
     try:
@@ -1040,7 +1044,7 @@ def show_active_battles():
                     # Create a card-like container for each battle
                     with st.container():
                         # Use columns for layout
-                        col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+                        col1, col2, col3 = st.columns([2, 2, 1])
                         
                         with col1:
                             st.write(f"🎮 Host: **{room['creator']}**")
@@ -1049,21 +1053,6 @@ def show_active_battles():
                             st.write(f"📚 Category: {room['category']}")
                             
                         with col3:
-                            # Format the creation time
-                            created_at = datetime.fromisoformat(room['created_at'].replace('Z', '+00:00'))
-                            time_ago = datetime.utcnow() - created_at
-                            minutes_ago = int(time_ago.total_seconds() / 60)
-                            
-                            if minutes_ago < 1:
-                                time_str = "Just now"
-                            elif minutes_ago == 1:
-                                time_str = "1 minute ago"
-                            else:
-                                time_str = f"{minutes_ago} minutes ago"
-                                
-                            st.write(f"⏰ Created: {time_str}")
-                        
-                        with col4:
                             # Join button with unique key for each room
                             if st.button("Join", key=f"join_{room['id']}", type="primary"):
                                 if join_battle_room(room['id']):
