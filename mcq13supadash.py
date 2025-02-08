@@ -945,8 +945,7 @@ def display_battle_tab():
         return
         
     if not st.session_state.battle_mode:
-        st.title("⚔️ Battle Arena")
-        
+          
         # Create or Join Battle
         col1, col2 = st.columns(2)
         
