@@ -726,7 +726,8 @@ def display_leaderboard():
                         st.warning(f"{percentage}%")
     else:
         st.info("No students have attempted the 'All Categories' quiz yet! 📚 Complete the 'All Categories' quiz to appear on the leaderboard.")
-#lagibaru
+
+#lagibarulagi
 def initialize_battle_state():
     """Initialize all battle-related session state variables."""
     if 'battle_mode' not in st.session_state:
@@ -744,13 +745,14 @@ def initialize_battle_state():
     if 'current_question_index' not in st.session_state:
         st.session_state.current_question_index = 0
     if 'battle_timer' not in st.session_state:
-        st.session_state.battle_timer = 30  # 30 seconds per question
+        st.session_state.battle_timer = 30
     if 'streak_bonus' not in st.session_state:
         st.session_state.streak_bonus = 0
+    if 'current_battle_scores' not in st.session_state:
+        st.session_state.current_battle_scores = {}
     if 'total_battle_score' not in st.session_state:
         st.session_state.total_battle_score = 0
-    if 'current_question_score' not in st.session_state:
-        st.session_state.current_question_score = 0
+
 
 import random
 import string
@@ -790,10 +792,8 @@ def create_battle_room(selected_category):
             'explanation': q['explanation']
         } for q in shuffled_questions]
         
-        # Generate a short display code
         display_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         
-        # Initialize fresh battle data with zero scores
         battle_data = {
             'id': str(uuid.uuid4()),
             'display_code': display_code,
@@ -801,24 +801,28 @@ def create_battle_room(selected_category):
             'status': 'waiting',
             'created_at': datetime.now(timezone.utc).isoformat(),
             'questions': formatted_questions,
-            'creator_score': 0,  # Start with zero
-            'joiner_score': 0,   # Start with zero
-            'category': selected_category
+            'creator_score': 0,
+            'joiner_score': 0,
+            'category': selected_category,
+            'current_scores': {}
         }
         
         response = supabase.table('battle_rooms').insert(battle_data).execute()
-        st.session_state.battle_questions = formatted_questions
-        st.session_state.battle_id = response.data[0]['id']
-        st.session_state.total_battle_score = 0  # Reset session score
-        st.session_state.streak_bonus = 0       # Reset streak
-        st.session_state.current_question_index = 0  # Reset question index
-        return display_code
+        if response.data:
+            st.session_state.battle_questions = formatted_questions
+            st.session_state.battle_id = response.data[0]['id']
+            st.session_state.total_battle_score = 0
+            st.session_state.streak_bonus = 0
+            st.session_state.current_question_index = 0
+            st.session_state.current_battle_scores = {}
+            return display_code
+        return None
         
     except Exception as e:
         st.error(f"Error creating battle room: {str(e)}")
         return None
 
-#lagilagibaru
+#lagilagilagibaru
 def display_battle_quiz():
     """Display enhanced quiz for battle mode."""
     if not st.session_state.battle_questions:
@@ -834,21 +838,6 @@ def display_battle_quiz():
             show_battle_results(battle_info)
         return st.session_state.total_battle_score
     
-    # Rest of quiz display code...
-    
-    # Display live scores at the top
-    #display_live_scores(battle_info)
-        
-    st.divider()  # Add visual separatio
-
-      
-    # Check if quiz is complete
-    if current_q_idx >= len(st.session_state.battle_questions):
-        st.success("Quiz completed!")
-        return st.session_state.total_battle_score
-    
-    q = st.session_state.battle_questions[current_q_idx]
-    
     # Battle Stats Display
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -858,7 +847,9 @@ def display_battle_quiz():
     with col3:
         st.metric("Streak", f"{st.session_state.streak_bonus}x 🔥")
     with col4:
-        st.metric("Score", st.session_state.total_battle_score)
+        st.metric("Current Score", st.session_state.total_battle_score)
+    
+    q = st.session_state.battle_questions[current_q_idx]
     
     # Question Display
     st.subheader(f"Question {current_q_idx + 1}")
@@ -897,15 +888,14 @@ def display_battle_quiz():
             
             st.session_state.battle_answers[current_q_idx] = answer
             st.session_state.current_question_index += 1
-            st.session_state.battle_timer = 30  # Reset timer
-            st.session_state.current_question_score = question_score
+            st.session_state.battle_timer = 30
             st.rerun()
             return question_score
     else:
         st.warning("⏰ Time's up!")
         st.session_state.current_question_index += 1
         st.session_state.battle_timer = 30
-        st.session_state.streak_bonus = 0  # Reset streak on timeout
+        st.session_state.streak_bonus = 0
         st.rerun()
         return 0
     
@@ -1212,7 +1202,8 @@ def display_live_scores(battle_info):
             </div>
             """, unsafe_allow_html=True)
 
-#lagibaru
+
+#lagilagibaru
 def reset_battle_state():
     """Reset all battle-related session state variables."""
     st.session_state.battle_mode = False
@@ -1224,11 +1215,10 @@ def reset_battle_state():
     st.session_state.battle_category = None
     st.session_state.creating_battle = False
     st.session_state.current_question_index = 0
-    st.session_state.total_battle_score = 0  # Reset score
-    st.session_state.streak_bonus = 0       # Reset streak
-    st.session_state.battle_timer = 30     # Reset timer
-
-
+    st.session_state.total_battle_score = 0
+    st.session_state.streak_bonus = 0
+    st.session_state.battle_timer = 30
+    st.session_state.current_battle_scores = {}
 
 
 def display_admin_dashboard():
@@ -1340,9 +1330,8 @@ def handle_battle_question_submission(current_question, user_answer, question_in
         st.error("❌ Incorrect")
         st.session_state.battle_answers[question_index] = user_answer
         return False
-    
 
-#lagilagibaru
+#lagibaru
 def join_battle_room(display_code):
     """Join an existing battle room with fresh score."""
     try:
@@ -1356,44 +1345,42 @@ def join_battle_room(display_code):
         st.session_state.battle_questions = room_data['questions']
         st.session_state.battle_category = room_data['category']
         st.session_state.battle_id = room_data['id']
-        st.session_state.total_battle_score = 0  # Reset score for joiner
-        st.session_state.streak_bonus = 0       # Reset streak for joiner
-        st.session_state.current_question_index = 0  # Reset question index
+        st.session_state.total_battle_score = 0
+        st.session_state.streak_bonus = 0
+        st.session_state.current_question_index = 0
+        st.session_state.current_battle_scores = {}
             
         response = supabase.table('battle_rooms').update({
             'joiner': st.session_state.student_name,
             'status': 'in_progress',
             'joined_at': datetime.now(timezone.utc).isoformat(),
-            'joiner_score': 0  # Ensure joiner starts with zero
+            'joiner_score': 0,
+            'current_scores': {}
         }).eq('id', room_data['id']).execute()
         
-        if response.data:
-            return True
-        return False
+        return bool(response.data)
+        
     except Exception as e:
         st.error(f"Error joining battle room: {str(e)}")
         return False
-
-#lagibaru
  
+#lagibaru
 def update_battle_score(room_id, is_creator, score):
     """Update the score for current battle only."""
     try:
         field = 'creator_score' if is_creator else 'joiner_score'
+        current_scores = st.session_state.get('current_battle_scores', {})
+        current_scores[st.session_state.student_name] = score
         
-        # Get current battle info
-        battle_info = check_battle_status(room_id)
-        if battle_info:
-            # Only update if the score has changed
-            current_score = battle_info['creator_score'] if is_creator else battle_info['joiner_score']
-            if score != current_score:
-                supabase.table('battle_rooms').update({
-                    field: score,
-                    'updated_at': datetime.now(timezone.utc).isoformat()
-                }).eq('id', room_id).execute()
-                
+        supabase.table('battle_rooms').update({
+            field: score,
+            'current_scores': current_scores,
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }).eq('id', room_id).execute()
     except Exception as e:
         st.error(f"Error updating score: {str(e)}")
+
+
 
 def check_battle_status(room_id):
     """Check the status of the battle room with better error handling."""
