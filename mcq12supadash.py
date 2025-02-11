@@ -780,8 +780,9 @@ import string
 import uuid
 
 def create_battle_room(selected_category):
-    """Create a new battle room with questions and fresh scores."""
+    """Create a new battle room matching exact database schema."""
     try:
+        # Get and shuffle questions
         questions = get_all_questions(selected_category)
         shuffled_questions = random.sample(questions, min(len(questions), 5))
         
@@ -792,35 +793,41 @@ def create_battle_room(selected_category):
             'explanation': q['explanation']
         } for q in shuffled_questions]
         
+        # Generate short display code
         display_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         
+        # Match exact table schema
         battle_data = {
-            'id': str(uuid.uuid4()),
-            'display_code': display_code,
             'creator': st.session_state.student_name,
             'status': 'waiting',
-            'created_at': datetime.now(timezone.utc).isoformat(),
             'questions': formatted_questions,
             'creator_score': 0,
             'joiner_score': 0,
             'category': selected_category,
-            'current_scores': {}
+            'display_code': display_code
+            # Note: id, created_at, joined_at, updated_at are handled by database defaults
         }
         
         response = supabase.table('battle_rooms').insert(battle_data).execute()
+        
         if response.data:
+            # Set session state
             st.session_state.battle_questions = formatted_questions
             st.session_state.battle_id = response.data[0]['id']
             st.session_state.total_battle_score = 0
             st.session_state.streak_bonus = 0
             st.session_state.current_question_index = 0
-            st.session_state.current_battle_scores = {}
+            st.success(f"Your battle room code: {display_code}")
             return display_code
+            
         return None
         
     except Exception as e:
         st.error(f"Error creating battle room: {str(e)}")
+        st.error(f"Error details: {str(e.__dict__)}")  # More detailed error info
         return None
+       
+
 
 #lagilagilagibaru
 def display_battle_quiz():
@@ -1333,8 +1340,9 @@ def handle_battle_question_submission(current_question, user_answer, question_in
 
 #lagibaru
 def join_battle_room(display_code):
-    """Join an existing battle room with fresh score."""
+    """Join a battle room using display code."""
     try:
+        # Find room by display code
         room = supabase.table('battle_rooms').select('*').eq('display_code', display_code).eq('status', 'waiting').execute()
         
         if not room.data:
@@ -1342,48 +1350,50 @@ def join_battle_room(display_code):
             return False
         
         room_data = room.data[0]
+        
+        # Set session state
         st.session_state.battle_questions = room_data['questions']
         st.session_state.battle_category = room_data['category']
         st.session_state.battle_id = room_data['id']
         st.session_state.total_battle_score = 0
         st.session_state.streak_bonus = 0
         st.session_state.current_question_index = 0
-        st.session_state.current_battle_scores = {}
             
-        response = supabase.table('battle_rooms').update({
+        # Update room with joiner info
+        update_data = {
             'joiner': st.session_state.student_name,
             'status': 'in_progress',
             'joined_at': datetime.now(timezone.utc).isoformat(),
-            'joiner_score': 0,
-            'current_scores': {}
-        }).eq('id', room_data['id']).execute()
+            'joiner_score': 0
+        }
         
-        return bool(response.data)
+        response = supabase.table('battle_rooms').update(update_data).eq('id', room_data['id']).execute()
+        
+        if response.data:
+            return True
+        return False
         
     except Exception as e:
         st.error(f"Error joining battle room: {str(e)}")
         return False
+
  
 #lagibaru
 def update_battle_score(room_id, is_creator, score):
-    """Update the score for current battle only."""
+    """Update battle score for current player."""
     try:
-        field = 'creator_score' if is_creator else 'joiner_score'
-        current_scores = st.session_state.get('current_battle_scores', {})
-        current_scores[st.session_state.student_name] = score
-        
-        supabase.table('battle_rooms').update({
-            field: score,
-            'current_scores': current_scores,
+        update_data = {
+            'creator_score' if is_creator else 'joiner_score': score,
             'updated_at': datetime.now(timezone.utc).isoformat()
-        }).eq('id', room_id).execute()
+        }
+        
+        supabase.table('battle_rooms').update(update_data).eq('id', room_id).execute()
     except Exception as e:
         st.error(f"Error updating score: {str(e)}")
 
-
-
+#lagibaru
 def check_battle_status(room_id):
-    """Check the status of the battle room with better error handling."""
+    """Check battle room status."""
     if not room_id:
         return None
         
@@ -1391,7 +1401,6 @@ def check_battle_status(room_id):
         response = supabase.table('battle_rooms').select('*').eq('id', room_id).execute()
         if not response.data:
             st.error("Battle room not found. It may have been deleted.")
-            # Reset battle mode if room doesn't exist
             st.session_state.battle_mode = False
             st.session_state.battle_id = None
             return None
@@ -1399,6 +1408,7 @@ def check_battle_status(room_id):
     except Exception as e:
         st.error(f"Connection error: {str(e)}")
         return None
+
 
 def leave_battle_room(room_id, is_creator):
     """Handle leaving the battle room."""
